@@ -204,13 +204,8 @@ def draw(nodes, weights, path, nodeSize=33):
         ax.text(pos[0], pos[1], label, fontsize=nodeSize*(3/4), zorder=4,
                 horizontalalignment='center',
                 verticalalignment='center') #this isn't quite centered?
-                #transform=ax.transAxes)
-
-    ax.set_aspect(1)
-    ax.set_xbound((-1/6, 7/6))
-    ax.set_ybound((-1/6, 3/6))
-    plt.show()
-    
+        
+    return fig, ax
 
 
 if __name__ == "__main__":
@@ -224,4 +219,8 @@ if __name__ == "__main__":
     path = dijkstra(dijk_nodes, dijk_weights)
     print("dijkstra path:", path)
     
-    draw(dijk_nodes, dijk_weights, path)
+    fig, ax = draw(dijk_nodes, dijk_weights, path)
+    ax.set_xbound((-1/6, 7/6))
+    ax.set_ybound((-1/6, 3/6))
+    ax.set_aspect(1)
+    plt.show()
