@@ -154,7 +154,7 @@ def dijkstra(nodes, weights, start='A', end='F'):
 def draw(nodes, weights, path, nodeSize=33):
     xy = list(zip(*[i[0] for i in nodes]))
     labels = [x[1] for x in nodes]
-
+    
     #build dijkstra weight matrix
     #rows are from, columns are to
     mweights = [[float("inf") for i in nodes] for j in nodes]
