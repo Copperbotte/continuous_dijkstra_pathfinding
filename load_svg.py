@@ -38,6 +38,9 @@ def loadSvgData(src="sample_src.svg"):
     points = list(map(parseCircle, def_points))
     paths =  list(map(parsePath, def_paths))
 
+    if not len(points):
+        points = [(0,0)]
+
     #scale paths and points to [0, 1)
     #keeping aspect ratio to the larger dimension.
     #performs an inverse lerp.
@@ -72,10 +75,10 @@ def loadSvgData(src="sample_src.svg"):
     #from the max point, rather than the min. This could probably be
     #done with a matrix, but this scipt doesn't use numpy, and writing
     #one just for here doesn't seem like its worth it.
-    t_points = [((p[0]-min_x)/dx, (max_y-p[1])/dy) for p in points]
-    t_paths = list(map(lambda path:
-                       [((p[0]-min_x)/dx, (max_y-p[1])/dy) for p in path],
-                       paths))
+    def inv_lerp(p):
+        return ((p[0]-min_x)/dx, (max_y-p[1])/dy)
+    t_points = list(map(inv_lerp, points))
+    t_paths = list(map(lambda path: list(map(inv_lerp, path)), paths))
     
     return t_points, t_paths
     
