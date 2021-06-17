@@ -165,7 +165,7 @@ def validate_delaunay_constraint(path, tri, point):
     
 
 #constrained delaunay using a simple n^2 search algorithm
-def triangulate_delaunay(path):
+def triangulate_delaunay_simple(path):
 
     #for each constrained side, find the best deluanay point
     tris = []
@@ -196,63 +196,54 @@ def triangulate_delaunay(path):
 
     return tris
 
-
-#picks a random triangle, validates it.
-#def triangulate(path):
-
-
-if __name__ == "__main__":
-    points, paths = loadSvgData()
-    path = paths[3]
+#test methods
+def test_delaunay(path, plot=False):
+    p = path[:-1]
+    tri = p[:3] + [p[0]]
+    point = (1,1)
     
-    def ezquiver(ax, x, y, color=None):
-        if color == None:
-            color = next(ax._get_lines.prop_cycler)
-        ax.quiver(x[:-1], y[:-1], *tuple([e-s for s,e in zip(xy[:-1], xy[1:])] for xy in [x,y]),
-           scale_units='xy', angles='xy', scale=1, **color)
+    constraints = [[(0.7, 1.1), (1.0, 0.5)],
+                   [(0.7, 1.1), (1.0, 1.1)]]
+
+    fig, axs = plt.subplots(1, 2)
+    fig.suptitle("Constrained Delaunay triangle test")
     
-    def eztri(tri, ax=None):
-        if ax == None:
-            fig, ax = plt.subplots()
-        valid = validate(path, tri)
-        ezquiver(ax, *tuple(zip(*path)))
-        
-        color = next(ax._get_lines.prop_cycler)
-        if valid == "True":
-            color = {'color': 'green'}
-        ezquiver(ax, *tuple(zip(*tri)), color=color)
-        ax.title.set_text(str(valid))
-        #ax.title.set_text(str(n)+": "+t)
+    uv, r = calc_circle(tri)
 
-    def test_delaunay():
-        p = path[:-1]
-        tri = p[:3] + [p[0]]
-        point = (1,1)
-
-        constraint = [(0.7, 1.1), (1.0, 0.5)]
-        
-        uv, r = calc_circle(tri)
-        fig, ax = plt.subplots()
+    for ax, con in zip(axs, constraints):
         color = next(ax._get_lines.prop_cycler)
-        val = validate_delaunay_constraint(constraint, tri, point)
+        val = validate_delaunay_constraint(con, tri, point)
         if not val:
             color = {'color':'red'}
         ax.add_patch(plt.Circle(uv, radius=r, fill=False, **color))
         ax.plot(*tuple(zip(*tri)))
-        ax.plot(*tuple(zip(*constraint)))
+        ax.plot(*tuple(zip(*con)))
         ax.scatter(*point)
         ax.scatter(*uv)
+        ax.set_aspect(1)
+    if plot:
         plt.show()
-    #test_delaunay()
 
-    def test_triangulate():
-        fig, axs = plt.subplots(2, 2)
+def test_triangulate(paths, plot=False):
+    #build a square like region
+    w = int(np.ceil(np.sqrt(len(paths))))
+    h = int(np.ceil(len(paths) / w))
+    
+    fig, axs = plt.subplots(w, h)
+    fig.suptitle("Triangulation of simple paths")
 
-        for ax, path in zip(axs.reshape((1,4))[0], paths):
-            tris = triangulate_delaunay(path)
-            ax.plot(*tuple(zip(*path)))
-            for t in tris:
-                ax.plot(*tuple(zip(*t)))
-            ax.title.set_text("Triangle count: %d"%len(tris))
+    for ax, path in zip(axs.reshape((1,len(paths)))[0], paths):
+        tris = triangulate_delaunay_simple(path)
+        ax.plot(*tuple(zip(*path)))
+        for t in tris:
+            ax.plot(*tuple(zip(*t)))
+        ax.title.set_text("Triangle count: %d"%len(tris))
+    if plot:
         plt.show()
-    test_triangulate()
+
+if __name__ == "__main__":
+    points, paths = loadSvgData()
+    
+    test_delaunay(paths[3])
+    test_triangulate(paths)
+    plt.show()
