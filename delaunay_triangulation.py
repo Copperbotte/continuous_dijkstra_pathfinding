@@ -167,32 +167,39 @@ def validate_delaunay_constraint(path, tri, point):
 #constrained delaunay using a simple n^2 search algorithm
 def triangulate_delaunay_simple(path):
 
+    vertices = path[:-1]
+    indices = [(a, (a+1)%len(vertices)) for a, _ in enumerate(vertices)]
+
     #for each constrained side, find the best deluanay point
     tris = []
     tri_sets = []
-    for p1, p2 in zip(path[:-1], path[1:]):
-        curp3 = None
+    for i1, i2 in indices:
+        curi3 = None
         
-        for p3 in path[:-1]:
+        for i3, _ in enumerate(vertices):
             #skip duplicate nodes
-            if len(set([p1, p2, p3])) != 3:
+            if len(set([i1, i2, i3])) != 3:
                 continue
 
-            if curp3 == None:
-                curp3 = p3
+            if curi3 == None:
+                curi3 = i3
                 continue
             
-            tri = [curp3, p1, p2, curp3]
-            valid = validate_delaunay_constraint(path, tri, p3)
+            tri = [curi3, i1, i2, curi3]
+            v_tri = list(map(lambda x: vertices[x], tri))
+            valid = validate_delaunay_constraint(path, v_tri, vertices[i3])
             if not valid:
-                curp3 = p3
+                curi3 = i3
 
         #check if this tri was already found
-        tri = [curp3, p1, p2, curp3]
+        tri = [curi3, i1, i2, curi3]
         ts = set(tri)
         if ts not in tri_sets:
             tris.append(tri)
             tri_sets.append(ts)
+
+    #convert from indices to vertices
+    #tris = [[vertices[i] for i in tri] for tri in tris]
 
     return tris
 
@@ -233,7 +240,8 @@ def test_triangulate(paths, plot=False):
     fig.suptitle("Triangulation of simple paths")
 
     for ax, path in zip(axs.reshape((1,len(paths)))[0], paths):
-        tris = triangulate_delaunay_simple(path)
+        i_tris = triangulate_delaunay_simple(path)
+        tris = [[path[i] for i in tri] for tri in i_tris]
         ax.plot(*tuple(zip(*path)))
         for t in tris:
             ax.plot(*tuple(zip(*t)))
