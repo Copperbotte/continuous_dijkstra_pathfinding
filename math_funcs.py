@@ -1,6 +1,10 @@
 
 import numpy as np
 
+#####                  #####
+##### Simple functions #####
+#####                  #####
+
 #forward linear interpolate
 def lerp(x, low, high):
     return (high - low)*x + low
@@ -13,6 +17,10 @@ def inv_lerp(x, low, high):
 def normalize(v):
     norm = np.linalg.norm(v)
     return v / norm
+
+#####                           #####
+##### Matrix building functions #####
+#####                           #####
 
 #isolate a minor for a given n dimensional array
 #skip is a tuple of which coords to skip
@@ -36,6 +44,35 @@ def cofactor(matrix, skip):
     #multiply the cofactor by (-1)^(i+j)
     cof *= 1 if sum(skip)%2 == 0 else -1
     return cof
+
+
+#####                  #####
+##### Matrix functions #####
+#####                  #####
+
+#point in triangle using inverse method
+#This can be generalized in 3d using the moore-penrose psuedoinverse.
+def pointInTri(point, tri):
+    point = np.array(point)
+    tri = np.array(tri)
+
+    #convert the tri into a basis
+    point -= tri[0]
+    tri -= tri[0]
+
+    #strip the other tri, check if the inverse is valid
+    M = tri[1:].transpose()
+    if np.linalg.det(M) == 0:
+        return False
+
+    #bring the point into the triangle's basis space
+    #psuedoinverse if this was in 3d
+    inv = np.linalg.inv(M)
+    xy = inv @ point
+
+    #the transformed triangle's edges are now
+    #the coordinate axes, and y + x = 1.
+    return np.all(0 < xy) and np.sum(xy) < 1
 
 #find the radius and position of a circle from a tri
 #using a variant of within_circle's matrix method
@@ -83,6 +120,10 @@ def within_circle(tri, point):
     #true if the point is outside the circle
     return np.linalg.det(M) < 0
 
+#####                  #####
+#####  Test functions  #####
+#####                  #####
+
 #tests calc_circle and within_circle functions.
 #Given a generic tri, find a circle that touches its vertices.
 #Create a set of points, and test weather its in the circle.
@@ -96,6 +137,7 @@ def test_circle():
     
     points = sum(points, [])
     values = list(map(lambda p: within_circle(tri[:-1], p), points))
+    intri = list(map(lambda v: pointInTri(v, tri[:-1]), points))
     
     fig, ax = plt.subplots()
     color = next(ax._get_lines.prop_cycler)
@@ -105,7 +147,9 @@ def test_circle():
     color_true = next(ax._get_lines.prop_cycler)['color']
     color_false = next(ax._get_lines.prop_cycler)['color']
     colors = list(map(lambda v: color_true if v else color_false, values))
-    ax.scatter(*tuple(zip(*points)), c=colors, s=1)
+    sizes = list(map(lambda v: 10 if v else 1, intri))
+    
+    ax.scatter(*tuple(zip(*points)), c=colors, s=sizes)
 
     ax.set_aspect(1)
     plt.show()

@@ -5,9 +5,8 @@
 #https://www.shadertoy.com/view/stjGRD
 
 import numpy as np
-from load_svg import loadSvgData, plotSvgData
-
 from math_funcs import normalize, within_circle, calc_circle
+from smallest_circle import welzl_smallest_circle
 
 #given a constraint path, a tri, and a point, check if the point is a valid
 #delaunay point, then check if it is visible through the paths.
@@ -176,9 +175,11 @@ def test_triangulate(paths, plot=False):
         plt.show()
 
 if __name__ == "__main__":
+    from load_svg import loadSvgData, plotSvgData
     import matplotlib.pyplot as plt
+    import matplotlib.animation as ani
     points, paths = loadSvgData()
-    
+
     test_delaunay(paths[3])
     test_triangulate(paths)
     plt.show()
