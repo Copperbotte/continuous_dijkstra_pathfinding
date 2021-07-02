@@ -9,6 +9,8 @@ import xml.dom.minidom
 import svg.path
 import matplotlib.pyplot as plt
 
+from math_funcs import inv_lerp
+
 def parsePath(dom):
     path = svg.path.parse_path(dom.getAttribute('d'))
     actions = [e for e in path]
@@ -22,9 +24,6 @@ def parseCircle(dom):
     x = float(dom.getAttribute('cx'))
     y = float(dom.getAttribute('cy'))
     return (x,y)
-
-def inv_lerp(x, low, high):
-    return (x - low) / (high - low)
 
 def loadSvgData(src="sample_src.svg"):
     #load svg from file
@@ -75,10 +74,10 @@ def loadSvgData(src="sample_src.svg"):
     #from the max point, rather than the min. This could probably be
     #done with a matrix, but this scipt doesn't use numpy, and writing
     #one just for here doesn't seem like its worth it.
-    def inv_lerp(p):
+    def ilerp(p):
         return ((p[0]-min_x)/dx, (max_y-p[1])/dy)
-    t_points = list(map(inv_lerp, points))
-    t_paths = list(map(lambda path: list(map(inv_lerp, path)), paths))
+    t_points = list(map(ilerp, points))
+    t_paths = list(map(lambda path: list(map(ilerp, path)), paths))
     
     return t_points, t_paths
     
