@@ -118,7 +118,8 @@ def within_circle(tri, point):
     M = np.array([basis(*t) for t in tri + [point]])
 
     #true if the point is outside the circle
-    return np.linalg.det(M) < 0
+    #this has right handed chirality
+    return 0 < np.linalg.det(M)
 
 #####                  #####
 #####  Test functions  #####
@@ -128,7 +129,7 @@ def within_circle(tri, point):
 #Given a generic tri, find a circle that touches its vertices.
 #Create a set of points, and test weather its in the circle.
 def test_circle():
-    tri = [(0,0),(0,1), (1,1), (0,0)]
+    tri = [(0,0),(1,1), (0,1), (0,0)]
 
     center, rad = calc_circle(tri[:-1])
     

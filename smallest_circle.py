@@ -6,7 +6,7 @@ from math_funcs import calc_circle
 #based on Welzl's algorithm to find the smallest circle containing
 #a set of points. used to find a triangle larger than the set of points.
 
-def welzl_smallest_circle(points, indices=[], boundary=[]):
+def welzl_recursive(points, indices=[], boundary=[]):
     #if the circle contains nothing, return the boundary set.
     #if the boundary is 0-2 points, return trivial circles.
     #if the boundary is 3, all other points lie within this circle.
@@ -28,7 +28,7 @@ def welzl_smallest_circle(points, indices=[], boundary=[]):
     p = indices[0]
 
     #find the optimal circle for everything besides this point
-    center, radius = welzl_smallest_circle(points, indices[1:], boundary)
+    center, radius = welzl_recursive(points, indices[1:], boundary)
 
     #if p is within this circle, return the circle
     delta = np.array(points[p]) - np.array(center)
@@ -37,7 +37,12 @@ def welzl_smallest_circle(points, indices=[], boundary=[]):
 
     #otherwise, p is somewhere on the boundary of the circle.
     #Re-traverse with it on the boundary.
-    return welzl_smallest_circle(points, indices[1:], boundary+[p])
+    return welzl_recursive(points, indices[1:], boundary+[p])
+
+#initializing function using points only
+def welzl_smallest_circle(points):
+    indices = [x for x in range(len(points))]
+    return welzl_recursive(points, indices)
 
 
 #Assuming points are circles with zero radius, then if a circle contains a set
@@ -232,6 +237,16 @@ def test_contain(points):
     #keep tests in global scope
     globals().update(locals())
 
+#simpler smallest circle test
+def test_smallest(paths):
+    fig, ax = plt.subplots()
+    for n in range(4):
+        ax.add_patch(plt.Circle(*welzl_smallest_circle(paths[n][:-1]), fill=False))
+        ax.plot(*tuple(zip(*paths[n])))
+    ax.set_aspect(1)
+    plt.show()
+    globals().update(locals())
+
 if __name__ == "__main__":
     from load_svg import loadSvgData, plotSvgData
     import matplotlib.pyplot as plt
@@ -246,5 +261,6 @@ if __name__ == "__main__":
     #points = paths[3][:-1]
     
     #test_contain(points)
-    test_welzl(points)
+    #test_welzl(points)
+    test_smallest(paths)
     
