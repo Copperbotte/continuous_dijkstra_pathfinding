@@ -25,17 +25,26 @@ def parseCircle(dom):
     y = float(dom.getAttribute('cy'))
     return (x,y)
 
+def parseRect(dom):
+    width = float(dom.getAttribute('width'))
+    height = float(dom.getAttribute('height'))
+    x = float(dom.getAttribute('x'))
+    y = float(dom.getAttribute('y'))
+    return [(x,y+height), (x+width,y+height), (x+width,y), (x,y), (x,y+height)] 
+
 def loadSvgData(src="sample_src.svg"):
     #load svg from file
     doc = xml.dom.minidom.parse(src)
 
-    #get a list of paths and points, extracted from circles
+    #get a list of paths and points, extracted from circles and rects
     def_paths = doc.getElementsByTagName("path")
+    def_rects = doc.getElementsByTagName("rect")
     def_points = doc.getElementsByTagName("circle")
-
+    
     #convert paths and points to cyclic lists of tuples
-    points = list(map(parseCircle, def_points))
     paths =  list(map(parsePath, def_paths))
+    paths += list(map(parseRect, def_rects))
+    points = list(map(parseCircle, def_points))
 
     if not len(points):
         points = [(0,0)]

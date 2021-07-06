@@ -8,6 +8,11 @@ import numpy as np
 from math_funcs import normalize, within_circle, calc_circle, pointInTri, inv_lerp
 from smallest_circle import welzl_smallest_circle
 
+#https://stackoverflow.com/questions/32000934/python-print-a-variables-name-and-value
+def debug(exp):
+    import sys
+    frame = sys._getframe(1)
+    print(exp, repr(eval(exp, frame.f_globals, frame.f_locals)))
 
 def dual_debug(duals):
     #test dual validity
@@ -64,15 +69,64 @@ def del_debug(points, tris, duals):
     dual_debug(duals)
     
     plt.show()
+
+#given a list of paths, returns a list of points and a list of pair of indices
+#without duplicates.
+def pathsToIndices(paths):
+    #build a tenative set of points
+    points = sum(paths, [])
     
-        
+    #build a tenative set of paths as indices
+    i_paths = []
+    csum = 0
+    for path in paths:
+        ip = [(x + csum, x + 1 + csum) for x in range(len(path)-1)]
+        i_paths.append(ip)
+        csum += len(path)
+
+    #returning here and calling indicesToPaths returns the original path
+    #return points, i_paths
+
+    #find duplicates    
+    p_index = [n if p not in points[:n] else points[:n].index(p)
+               for n, p in enumerate(points)]
+
+    #find offsets and output points, the first point cannot have a duplicate.
+    csum = 0
+    p_offsets = [csum]
+    p_out = [points[0]]
+    for n, p in enumerate(points[1:], 1):
+        p_offsets.append(csum)
+        if p in points[:n-1]:
+            csum += 1
+        else:
+            p_out.append(p)
+
+    #update indices
+    i_out = [[tuple(p_index[x] - p_offsets[x] for x in pair)
+                for pair in path] for path in i_paths]
+
+
+    globals().update(locals())
+    return p_out, i_out
+
+#debug
+def indicesToPaths(points, i_paths):
+    #make a list of indices of points
+    ip = [[path[0][0]] + [p[1] for p in path] for path in i_paths]
+
+    #convert to points
+    paths = [[points[p] for p in path] for path in ip]
+
+    return paths
+
 #given a constraint path, a tri, and a point, check if the point is a valid
 #delaunay point, then check if it is visible through the paths.
 #returns true if no visible paths are found.
-def validate_delaunay_constraint(path, tri, point):
+def validate_delaunay_constraint_old(path, tri, point):
     #first, check if the point is within the given circle
-    if not within_circle(tri, point):
-        return True
+    #if not within_circle(tri, point):
+    #    return True
 
     P = np.array(point)
     T = np.array(tri)
@@ -146,15 +200,210 @@ def validate_delaunay_constraint(path, tri, point):
     #the best constrained delaunay circle for the constraints.
     return True
 
+#given a list of points, list of tri indices,
+#and indices for a tri, a point, and constraints,
+#check if the point is valid constrained delaunay.
+#returns true or false.
+def validate_delaunay_constraint_mix(points, tris, tri, point, path):  
+    #convert the tris, point, and constraints from indices to points
+    p_tri = [points[x] for x in tri]
+    p_point = points[point]
+    
+    #first, check if the point is within the given circle
+    #if not within_circle(p_tri, p_point):
+    #    return True
+
+    #debug('tri')
+    #debug('point')
+
+    #convert constraints only when nessisary
+    np_tri = np.array(p_tri)
+    np_point = np.array(p_point)
+
+    #debug('np_tri')
+    #debug('np_point')
+    #debug('constraints')
+    
+    #np_constraints = sum[np.array([points[x] for x in line]) for line in constraints]
+
+    #debug('tri')
+    
+    #check visibility for a given constraint segment
+    #maybe this can be better done in a bsp format?
+    for a, b in zip(path[:-1], path[1:]):
+    #for c_pos in np_constraints:
+        #generate a pair of lines between the point, and the constraint
+        c_pos = np.array([np.array(a), np.array(b)])
+
+        c_diff = c_pos[1] - c_pos[0]
+        
+        #tangent basis
+        c_tangent = normalize(c_diff)
+
+        #find constraint tangent coords
+        c_coords = np.dot(c_tangent, c_pos.transpose())
+
+        #normal basis
+        #this method is not general in 3d
+        c_normal = np.array([-c_tangent[1], c_tangent[0]])
+
+        #normal offset coord
+        c_offset = np.dot(c_normal, c_pos[0])
+
+        #iterate through all test points
+        def test_point(t_pos):
+            if np.linalg.norm(t_pos - c_pos[0]) < 0.0001:
+                print("hmmm")
+                globals().update(locals())
+                return False
+            
+            #generate a line through the two points
+            t_diff = np_point - t_pos
+            t_tangent = normalize(t_diff)
+            t_coords = np.dot(t_tangent, np.array([t_pos, np_point]).transpose())
+            
+            t_normal = np.array([-t_tangent[1], t_tangent[0]])
+            t_offset = np.dot(t_normal, np_point)
+            #using the matrix definition of lines
+            #if the lines are parallel, continue
+            M = np.array([t_normal, c_normal])
+            if np.linalg.det(M) == 0.0:
+                return True
+                #continue
+            #find their intersection point
+            p_inter = np.dot(np.linalg.inv(M), np.array([t_offset, c_offset]))
+
+            plt.scatter(*p_inter)
+
+            #determine how scaled the intersection is from
+            #the constraint vertices coordinates via inverse lerp
+            c_inter = np.dot(c_tangent, p_inter)
+            c_inter = inv_lerp(c_inter, c_coords[0], c_coords[1])
+
+            #if coords of ip are between 0 and 1, hit constraint
+            if 0 < c_inter < 1:
+                #check if the constraint is behind the test point
+                #via inverse lerp
+                t_inter = np.dot(t_tangent, p_inter)
+                t_inter = inv_lerp(t_inter, t_coords[0], t_coords[1])
+                
+                if 0 < t_inter < 1:
+                    return True
+                    #continue
+
+            #otherwise, this is an invalid point
+            return False
+        #if any of the points are blocked, this is valid
+        if not any(map(test_point, np_tri)):
+            return False
+    
+    #if both loops pass completely, this is
+    #the best constrained delaunay circle for the constraints.
+    return True
+
+#given a list of points, list of tri indices,
+#and indices for a tri, a point, and constraints,
+#check if the point is valid constrained delaunay.
+#returns true or false.
+def validate_delaunay_constraint(points, tris, tri, point, constraints):
+    #convert the tris, point, and constraints from indices to points
+    p_tri = [points[x] for x in tri]
+    p_point = points[point]
+    
+    #first, check if the point is within the given circle
+    #if not within_circle(p_tri, p_point):
+    #    return True
+
+    #debug('tri')
+    #debug('point')
+
+    #convert constraints only when nessisary
+    np_tri = np.array(p_tri)
+    np_point = np.array(p_point)
+
+    #debug('np_tri')
+    #debug('np_point')
+    #debug('constraints')
+
+    merge_constraints = sum(constraints, [])
+    np_constraints = [np.array([points[x] for x in line]) for line in merge_constraints]
+    
+    #check visibility for a given constraint segment
+    #maybe this can be better done in a bsp format?
+    for c_pos in np_constraints:
+        #generate a pair of lines between the point, and the constraint
+        c_diff = c_pos[1] - c_pos[0]
+        
+        #tangent basis
+        c_tangent = normalize(c_diff)
+
+        #find constraint tangent coords
+        c_coords = np.dot(c_tangent, c_pos.transpose())
+
+        #normal basis
+        #this method is not general in 3d
+        c_normal = np.array([-c_tangent[1], c_tangent[0]])
+
+        #normal offset coord
+        c_offset = np.dot(c_normal, c_pos[0])
+
+        #iterate through all test points
+        def test_point(t_pos):
+            #generate a line through the two points
+            t_diff = np_point - t_pos
+            t_tangent = normalize(t_diff)
+            t_coords = np.dot(t_tangent, np.array([t_pos, np_point]).transpose())
+            
+            t_normal = np.array([-t_tangent[1], t_tangent[0]])
+            t_offset = np.dot(t_normal, np_point)
+            #using the matrix definition of lines
+            #if the lines are parallel, continue
+            M = np.array([t_normal, c_normal])
+            if np.linalg.det(M) == 0.0:
+                return True
+                #continue
+            #find their intersection point
+            p_inter = np.dot(np.linalg.inv(M), np.array([t_offset, c_offset]))
+
+            #determine how scaled the intersection is from
+            #the constraint vertices coordinates via inverse lerp
+            c_inter = np.dot(c_tangent, p_inter)
+            c_inter = inv_lerp(c_inter, c_coords[0], c_coords[1])
+
+            #if coords of ip are between 0 and 1, hit constraint
+            if 0 < c_inter < 1:
+                #check if the constraint is behind the test point
+                #via inverse lerp
+                t_inter = np.dot(t_tangent, p_inter)
+                t_inter = inv_lerp(t_inter, t_coords[0], t_coords[1])
+                
+                if 0 < t_inter < 1:
+                    return True
+                    #continue
+
+            #otherwise, this is an invalid point
+            return False
+        #if any of the points are blocked, this is valid
+        if not any(map(test_point, np_tri)):
+            return False
+    
+    #if both loops pass completely, this is
+    #the best constrained delaunay circle for the constraints.
+    return True
+
 #https://en.wikipedia.org/wiki/Bowyer%E2%80%93Watson_algorithm
 #given a set of points, triangulates the points to a delaunay triangulation.
 #Starting with a triangle that is larger than the set of all points,
 #for each new point, it replaces the triangle it lies within with triangles
 #constructed to each vertex. It then performs flips on each new triangle,
 #if it is no longer delaunay. It then checks neighboring triangles and repeats.
-def delaunay_new(points, paths):
+def delaunay(points, constraints=[], paths=[]):
     #find a circle larger than the set of points
     coords, radius = welzl_smallest_circle(points)
+
+    #paths = [None for c in constraints]
+
+    #print(points)
 
     #generate an equilateral triangle that is guaranteed to fit every point
     radius *= 2
@@ -409,15 +658,34 @@ def delaunay_new(points, paths):
                 ###print("n_duals index", ind)
                 
                 #the third point is the shared edge plus two
-                p = points[tri_off(n_tri, ind, 2)]
+                ip = tri_off(n_tri, ind, 2)
+                p = points[ip]
 
                 #check if this point lies within the source triangle's circle
                 #if not, do nothing with this neighbor
                 #within_circle has right handed chirality
                 p_tri = [points[x] for x in i_tri]
+
+                #if not validate_delaunay_constraint(points, tris, i_tri, ip,
+                #                                    constraints):
                 
-                if not any([validate_delaunay_constraint(path, p_tri, p) for path in paths]):
-                #if within_circle(p_tri, p):
+                #if not any([validate_delaunay_constraint_mix(points, tris, i_tri, ip, path)
+                #            for path in paths]):
+                #if not any([validate_delaunay_constraint_old(path, p_tri, p)
+                #            for path in paths]):
+                if within_circle(p_tri, p):
+                    #if the point is within the circle,
+                    #but the tri is blocked by constraints,
+                    #it is a valid constrained delaunay point.
+                    
+                    #if validate_delaunay_constraint(points, tris, i_tri, ip,
+                    #                                constraints):
+                    #if all([validate_delaunay_constraint_mix(points, tris, i_tri, ip, path)
+                    #        for path in paths]):
+                    #if all([validate_delaunay_constraint_old(path, p_tri, p)
+                    #        for path in paths]):
+                    #    continue
+
 
                     ###print('\n\n\n\n\n')
                     ###print("========> within!")
@@ -439,21 +707,22 @@ def delaunay_new(points, paths):
 
         
         for i in i_new:
+            #grab duals
+            for neighbor in duals[i]:
+                if neighbor == -1:
+                    continue
+                recursiveFlip(points, tris, duals, neighbor)
             recursiveFlip(points, tris, duals, i)
 
-    #return s_tri for now
-    return tris, duals, s_tri
+        #lazy apply to all tris
 
-    """
+    #return tris, duals, s_tri
+
+    #"""
     #delete tris that contain vertices in the super triangle
     #find the tris and duals that contain the vertices of the super triangle
     skips = list(map(lambda t: any(x in [0,1,2] for x in t), tris))
-    target_tris, target_duals, target_ids, _ = tuple(zip(*list(filter(
-        lambda x: x[3], zip(tris, duals, range(len(tris)), skips)))))
-
-    print(tris)
-    print(duals)
-    print(skips)
+    target_ids = [x for x in range(len(tris)) if skips[x]]
 
     #replace all neighbor duals with -1
     for i in target_ids:
@@ -463,52 +732,39 @@ def delaunay_new(points, paths):
             ind = duals[d].index(i)
             duals[d][ind] = -1
 
-    print()
-    print(tris)
-    print(duals)
-    print(skips)
-    print()
-    
-    #decrement all tri and dual indices by the number of found triangles in skips
+    #find offsets
     delta = 0
+    offsets = []
     for i, skip in enumerate(skips):
+        offsets.append(delta)
         if skip:
             delta += 1
+
+    #update tris and duals
+    tris_out = []
+    duals_out = []
+    
+    for i, (tri, dual, off, skip) in enumerate(zip(tris, duals, offsets, skips)):
+        if skip:
             continue
-        print(tris[i])
-        print(duals[i])
-        for n in range(3):
-            tris[i][n] -= delta
-            if duals[i][n] == -1:
-                continue
-            duals[i][n] -= delta
-        print(tris[i])
-        print(duals[i])
-        tris[i-delta] = tris[i]
-        duals[i-delta] = duals[i]
+        #tri offset is always 3, only removing the super triangle
+        tri = [t-3 for t in tri]
 
-    #cull extra data
-    dec = sum(skips)
-    tris, duals = tris[:-dec], duals[:-dec]    
+        #offset duals by the offset at the dual's neighbor
+        dual = [d - offsets[d] if d != -1 else -1 for d in dual]
+        tris_out.append(tri)
+        duals_out.append(dual)
 
-    print(tris)
-    print(duals)
+    return tris_out, duals_out, s_tri
 
-    return tris, duals
-    """
-
-#test methods
-def test_delaunay(points, paths, constraints=[]):
-
-    tris, duals, s_tri = delaunay_new(points, paths)
-
-    points = s_tri + points
+def test_delaunay_print(tris, duals, s_tri, points, paths, constraints):
+    #points = s_tri + points
     
     #get a set of vertices
     outputs = [[points[i] for i in tri] for tri in tris]
-
+    
     fig, ax = plt.subplots()
-    ax.scatter(*tuple(zip(*points)))
+    #ax.scatter(*tuple(zip(*points)))
     #ax.add_patch(plt.Circle(coords, radius, fill=False))
 
     #draw circles on every tri
@@ -517,21 +773,23 @@ def test_delaunay(points, paths, constraints=[]):
             ax.add_patch(plt.Circle(*calc_circle(tri), fill=False, color='gray'))
 
     #draw the input paths
-    for p in paths:
-        ax.plot(*tuple(zip(*p)), color='black')
+    if False:
+        for p in paths:
+            ax.plot(*tuple(zip(*p)), color='black')
 
     #draw the output tris
-    if True:
+    if False:
         for tri in outputs:
             p = list(map(lambda x: np.array(x), tri))
             pavg = sum(p) / 3
-            shrink = 0.01 * 0.0
+            shrink = 0.01 * 1.0
             p = list(map(lambda x: x*(1-shrink) + shrink*pavg, p))
             ax.plot(*tuple(zip(*(p + [p[0]]))))
 
     #annotate output points
-    for ip, p in enumerate(points):
-        ax.annotate(str(ip), p)
+    if False:
+        for ip, p in enumerate(points):
+            ax.annotate(str(ip), p)
 
     #draw duals from average point in tris
     if False:
@@ -546,7 +804,7 @@ def test_delaunay(points, paths, constraints=[]):
                 ax.plot([avg[0], avg2[0]], [avg[1], avg2[1]], c='black')
 
     #draw voronoi
-    if False:         
+    if True:         
         for i_d, d in enumerate(duals):
             c1, r1 = calc_circle(outputs[i_d])
             #get dual tri
@@ -561,11 +819,63 @@ def test_delaunay(points, paths, constraints=[]):
     plt.show()
     globals().update(locals())
 
+#test methods
+def test_delaunay(paths):
+
+    paths = [paths[1]] + [paths[3]]
+
+    #make points and constraints
+    newpoints, i_paths = pathsToIndices(paths)
+    newpaths = indicesToPaths(newpoints, i_paths)
+
+    points = newpoints
+    paths = newpaths
+
+    from random import random
+    points = [(random(),random()) for i in range(1000)]
+
+    constraints = i_paths
+
+    tris, duals, s_tri = delaunay(points, constraints=constraints, paths=paths)
+
+    test_delaunay_print(tris, duals, s_tri, points, paths, constraints)
+    globals().update(locals())
+
+def test_path(paths):
+
+    Single = False
+    #Multi = True
+
+    if Single:
+        for path in paths:
+            p, ip = pathsToIndices([path])
+            newp, = indicesToPaths(p, ip)
+            plt.plot(*tuple(zip(*newp)))
+
+    #if Multi:
+    else:
+        p, ip = pathsToIndices(paths)
+        newpa = indicesToPaths(p, ip)
+        for p in newpa:
+            plt.plot(*tuple(zip(*p)))
+
+    plt.show()
+    globals().update(locals())
+
 if __name__ == "__main__":
     from load_svg import loadSvgData, plotSvgData
     import matplotlib.pyplot as plt
     import matplotlib.animation as ani
     points, paths = loadSvgData()
+
+    #low = -0.5
+    #high = 2.0
+    #paths.append([(low, low), (high, low), (high, high), (low, high), (low, low)])
     
-    test_delaunay(sum([p[:-1] for p in paths], []), paths)
+    test_delaunay(paths)
+    #test_path(paths)
+    
+    #from random import random
+    #points = [(random(),random()) for i in range(1000)]
+    #test_delaunay(points, paths)
     plt.show()
